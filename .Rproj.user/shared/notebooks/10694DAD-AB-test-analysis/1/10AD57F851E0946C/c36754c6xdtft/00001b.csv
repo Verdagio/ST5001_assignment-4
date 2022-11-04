@@ -1,0 +1,6 @@
+"0","data <- data.frame(read.csv('./ab_test.csv', header = TRUE, sep = "",""))"
+"0",""
+"0","visits <- count(data)$n"
+"0",""
+"0","data %>%"
+"0","  summarise('Recorded queries' = n())"

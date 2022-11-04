@@ -1,0 +1,28 @@
+{
+    "id": "3058B087",
+    "path": "C:/Users/danny/dev/statistics-for-AI/assignment-4/AB-test-analysis.Rmd",
+    "project_path": "AB-test-analysis.Rmd",
+    "type": "r_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1667558383701.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "57,15",
+        "scrollLine": "43",
+        "ignored_words": "visualise\n"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1667558457,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1667580748759,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,61 @@
+---
+title: "AB-test-analysis"
+author: "Daniel Verdejo id=22240224"
+date: "2022-11-04"
+output: html_document
+---
+
+```{r}
+library("tidyverse")
+```
+
+A company is interested in investigating whether adding a new variant to a particular website will
+improve i) the visit through time and ii) the proportion of query items resolved compared to that
+observed in the current website.
+
+A sample of 300 customers were directed to either the current or new variant of the website and
+their visit through time whether or not their query was resolved was recorded.
+
+Variables of Interest:    Visit Through Time: Time (secs)
+                          Resolved: Resolved (Yes / No)
+
+Between Subject Factor:   Variant: Variant (A/B)
+                          where 'A' represents the current website and 'B' represents the
+                          website with new variant.
+
+
+First lets consume the data and check the total number of samples.
+```{r}
+data <- data.frame(read.csv('./ab_test.csv', header = TRUE, sep = ","))
+
+visits <- count(data)$n
+
+data %>%
+  summarise('Recorded queries' = n())
+
+```
+
+Next we visualise the proportion of our samples by their resolution status
+```{r}
+ggplot(data, aes(x = "Query resolved", y = visits, fill = Resolved)) +
+  geom_col(position = "fill")
+
+```
+Next lets split our data by each variant and plot
+```{r}
+
+variantA = data %>%
+  select(Variant, Time, Resolved) %>%
+  filter(Variant == 'A')
+
+variantB = data %>%
+  select(Variant, Time, Resolved) %>%
+  filter(Variant == 'B')
+
+ggplot(variantA, aes(x = 'Variant A queries resolved', y = count(variantA)$n, fill = Resolved)) +
+  geom_col(position = "fill")
+
+ggplot(variantB, aes(x = 'Variant A queries resolved', y = count(variantA)$n, fill = Resolved)) +
+  geom_col(position = "fill")
+
+```
