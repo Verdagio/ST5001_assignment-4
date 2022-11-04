@@ -1,4 +1,0 @@
-"0",""
-"0","ggplot(variantB, aes(x = 'Variant A queries resolved', y = count(variantA)$n, fill = Resolved)) +"
-"0","  geom_col(position = ""fill"")"
-"0",""
