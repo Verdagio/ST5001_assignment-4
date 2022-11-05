@@ -5,26 +5,57 @@ date: "2022-11-04"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+A company is interested in investigating whether adding a new variant to a particular website will improve i) the visit through time and ii) the proportion of query items resolved compared to that observed in the current website. A sample of 300 customers were directed to either the current or new variant of the website and their visit through time whether or not their query was resolved was recorded.
+
+Variables of Interest:  Visit Through Time: Time (secs)
+                        Resolved: Resolved (Yes / No)
+Between Subject Factor: Variant: Variant (A/B)
+                        where 'A' represents the current website and 'B' represents the website with new variant.
+                        
+```{r}
+library("tidyverse")
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Read the dataset into a dataframe
+```{r}
+data <- data.frame(read.csv("./ab_test.csv", header = TRUE, sep = ","))
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+totalSamples <- count(data)$n
+totalSamples
 ```
 
-## Including Plots
+Now lets visualise the proportion of resolved to unresolved queries
+```{r}
+ggplot(data, aes(fill=Resolved, y=totalSamples, x="Response status")) + 
+    geom_bar(position="fill", stat="identity")
+```
+Next lets visualise the the difference of responses between variants
 
-You can also embed plots, for example:
+```{r}
+ggplot(data, aes(fill=Resolved, y=totalSamples, x=Variant)) +
+  geom_bar(position = "fill", stat = "identity")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```
+As we can see Variant B had a greater resolution state than variant A
+
+Lets isolate the responses of Variant B our *explanatory variable* and print out the probability that a user visit will be below 300 seconds when using this variant.
+
+```{r}
+newVariant <- data %>%
+  select(Variant, Time, Resolved) %>%
+  filter(Variant == 'B')
+
+visitsBelow300 <- newVariant %>%
+  select(Time, Resolved) %>%
+  filter(Time <= 300)
+
+newVariantSampleCnt = count(newVariant)$n
+cntVisitsBelow300 = count(visitsBelow300)$n
+
+probabilityVisitBelow300Sec = cntVisitsBelow300 / newVariantSampleCnt
+
+sprintf("Probability of random user visit below 300 seconds on new variant (Variant B) = %s / %s = %s", countVisitsBelow300, newVariantSampleCnt, probabilityVisitBelow300Sec)
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
