@@ -17,45 +17,98 @@ library("tidyverse")
 ```
 
 
-Read the dataset into a dataframe
+Read the data-set into a data-frame
 ```{r}
 data <- data.frame(read.csv("./ab_test.csv", header = TRUE, sep = ","))
 
-totalSamples <- count(data)$n
-totalSamples
+population <- count(data)$n
 ```
 
-Now lets visualise the proportion of resolved to unresolved queries
-```{r}
-ggplot(data, aes(fill=Resolved, y=totalSamples, x="Response status")) + 
-    geom_bar(position="fill", stat="identity")
-```
-Next lets visualise the the difference of responses between variants
+Lets visualise the proportion of resolved to unresolved queries the difference of responses between variants
 
 ```{r}
-ggplot(data, aes(fill=Resolved, y=totalSamples, x=Variant)) +
+ggplot(data, aes(fill=Resolved, y=population, x=Variant)) +
   geom_bar(position = "fill", stat = "identity")
 
 ```
+
 As we can see Variant B had a greater resolution state than variant A
 
-Lets isolate the responses of Variant B our *explanatory variable* and print out the probability that a user visit will be below 300 seconds when using this variant.
+Lets isolate the samples of Variant B our *explanatory variable* and print out the probability that a customer visit time will be below 300 seconds when using this variant.
 
 ```{r}
-newVariant <- data %>%
+newVariantSample <- data %>%
   select(Variant, Time, Resolved) %>%
   filter(Variant == 'B')
 
-visitsBelow300 <- newVariant %>%
+visitsBelow3min <- newVariantSample %>%
   select(Time, Resolved) %>%
-  filter(Time <= 300)
+  filter(Time <= 180)
 
-newVariantSampleCnt = count(newVariant)$n
-cntVisitsBelow300 = count(visitsBelow300)$n
+cntNewVariantSample <- count(newVariantSample)$n
+cntVisitsBelow3min <- count(visitsBelow3min)$n
 
-probabilityVisitBelow300Sec = cntVisitsBelow300 / newVariantSampleCnt
+probabilityVisitBelow3min <- round(cntVisitsBelow3min / cntNewVariantSample, 3)
 
-sprintf("Probability of random user visit below 300 seconds on new variant (Variant B) = %s / %s = %s", countVisitsBelow300, newVariantSampleCnt, probabilityVisitBelow300Sec)
-
+sprintf("Probability of a visit time below 3 minutes on the new variant (Variant B) = %s / %s = %s", cntVisitsBelow3min, cntNewVariantSample, probabilityVisitBelow3min)
 ```
 
+To calculate this probability we first gathered a sample where the Variant is "B", this contained 150 data points. Next we gathered a sample of the Variant B sample where the Time value was less than 3 minutes, this contained 49 data points. Using these counts, we calculate the probability by doing the following:
+
+
+***probability of a visit through time less than 3 minutes = number of Variant B data points where Time is less than 3 minutes / number of Variant B data points*** 
+
+
+
+> Our probability that a random customer will have a visit through time below 3 minutes was a score of: **0.327**
+
+---
+
+calc probability that at least 70% of queries on the new site will be resolved in a day where it is assumed that 55
+customers visit the site in a day.
+
+Next we will take a sample of 55 customers from the Variant B sample
+
+```{r}
+oneDaySample <- sample_n(newVariantSample, 55) %>%
+  summarise(count= n(), Time, Resolved, Variant)
+
+ggplot(data = oneDaySample, aes(x = Variant, y = count, fill = Resolved)) +
+  geom_bar(position = "fill", stat = "identity") +
+  ggtitle("Sample proportion of 55 customers from the Variant B queries")
+```
+```{r}
+set.seed(4500)
+dailyCnt <- list()
+
+for (x in 1:10) {
+  day <- sample_n(newVariantSample, 55)
+
+  dailyCnt <- append(dailyCnt, day %>%
+    select(Resolved) %>%
+    filter(Resolved == "Yes") %>%
+    summarise(count = n()))
+}
+
+threshold <- 55 * 0.7
+for(cnt in dailyCnt) {
+  print(cnt)
+}
+
+#resolvedOneDaySample <- replicate(10, (sample_n(newVariantSample, 55) %>%
+ #   select(Resolved) %>%
+  #    filter(Resolved == "Yes") %>%
+   #   summarise(count(n = n()))))
+#  oneDaySample %>% 
+ # select(Resolved) %>%
+  #filter(Resolved == "Yes") %>%
+  #summarise(count = n()), 55))
+
+#oneDaySampleCnt <- oneDaySample %>%
+ # slice(1) %>%
+  #select(count)
+
+#probabilityResolved = round(resolvedOneDaySample$count / oneDaySampleCnt, 3)
+
+#sprintf("Probability that at least 70 percent of queries on the new site will be resolved in a day = %s / %s = %s", resolvedOneDaySample$count, oneDaySampleCnt, probabilityResolved)
+```
