@@ -17,40 +17,52 @@ library("tidyverse")
 ```
 
 
-Read the data-set into a data-frame
+Read the data-set into a data-frame and define some functions which we will use in our experiments
 ```{r}
 data <- data.frame(read.csv("./ab_test.csv", header = TRUE, sep = ","))
 
-population <- count(data)$n
+set.seed(626) # set the seed for a repeatable results
+
+threshold <- floor(55 * 0.7)
+
+calculateProbability <- function(events, allPossibleOutcomes) {
+  return (round(events / allPossibleOutcomes, 3))
+}
+
+eventsAboveThresholdExperiment <- function(sample, noOfDays) {
+  days <- list()
+
+  for (x in 1:noOfDays) { # for no of days, gather samples of size 55 where resolution status is "Yes"
+    day <- slice_sample(sample, n = 55)
+    day <- day %>% select(Resolved) %>% filter(Resolved == "Yes")
+    day <- count(day)$n
+    days <- append(days, day)
+  }
+  
+  # count and return the number of events which meet our condition
+  daysMetCondition <- which(days >= threshold)
+  noOfEvents <- length(daysMetCondition)
+  return (noOfEvents)
+}
 ```
-
-Lets visualise the proportion of resolved to unresolved queries the difference of responses between variants
-
-```{r}
-ggplot(data, aes(fill=Resolved, y=population, x=Variant)) +
-  geom_bar(position = "fill", stat = "identity")
-
-```
-
-As we can see Variant B had a greater resolution state than variant A
 
 Lets isolate the samples of Variant B our *explanatory variable* and print out the probability that a customer visit time will be below 300 seconds when using this variant.
 
 ```{r}
-newVariantSample <- data %>%
+variantB <- data %>%
   select(Variant, Time, Resolved) %>%
   filter(Variant == 'B')
 
-visitsBelow3min <- newVariantSample %>%
-  select(Time, Resolved) %>%
-  filter(Time <= 180)
+visitsBelow3minVarB <- variantB %>%
+  select(Time) %>%
+  filter(Time < 180)
 
-cntNewVariantSample <- count(newVariantSample)$n
-cntVisitsBelow3min <- count(visitsBelow3min)$n
+variantBCnt <- count(variantB)$n
+visitsBelow3minVarBCnt <- count(visitsBelow3minVarB)$n
 
-probabilityVisitBelow3min <- round(cntVisitsBelow3min / cntNewVariantSample, 3)
+varBProbabilityVisitBelow3min <- calculateProbability(visitsBelow3minVarBCnt ,variantBCnt)
 
-sprintf("Probability of a visit time below 3 minutes on the new variant (Variant B) = %s / %s = %s", cntVisitsBelow3min, cntNewVariantSample, probabilityVisitBelow3min)
+sprintf("Probability of a visit time below 3 minutes on the new variant (Variant B) = %s / %s = %s", visitsBelow3minVarBCnt, variantBCnt, varBProbabilityVisitBelow3min)
 ```
 
 To calculate this probability we first gathered a sample where the Variant is "B", this contained 150 data points. Next we gathered a sample of the Variant B sample where the Time value was less than 3 minutes, this contained 49 data points. Using these counts, we calculate the probability by doing the following:
@@ -70,7 +82,7 @@ customers visit the site in a day.
 Next we will take a sample of 55 customers from the Variant B sample
 
 ```{r}
-oneDaySample <- sample_n(newVariantSample, 55) %>%
+oneDaySample <- sample_n(variantB, 55) %>%
   summarise(count= n(), Time, Resolved, Variant)
 
 ggplot(data = oneDaySample, aes(x = Variant, y = count, fill = Resolved)) +
@@ -78,37 +90,128 @@ ggplot(data = oneDaySample, aes(x = Variant, y = count, fill = Resolved)) +
   ggtitle("Sample proportion of 55 customers from the Variant B queries")
 ```
 ```{r}
-set.seed(4500)
-dailyCnt <- list()
+noOfDays <- 91 # for a calendar quater of days
+eventsAboveThresholdVarB <- eventsAboveThresholdExperiment(variantB, noOfDays)
 
-for (x in 1:10) {
-  day <- sample_n(newVariantSample, 55)
+probabilityResolvedAboveThresholdVarB <- calculateProbability(eventsAboveThresholdVarB, noOfDays)
 
-  dailyCnt <- append(dailyCnt, day %>%
-    select(Resolved) %>%
-    filter(Resolved == "Yes") %>%
-    summarise(count = n()))
-}
-
-threshold <- 55 * 0.7
-for(cnt in dailyCnt) {
-  print(cnt)
-}
-
-#resolvedOneDaySample <- replicate(10, (sample_n(newVariantSample, 55) %>%
- #   select(Resolved) %>%
-  #    filter(Resolved == "Yes") %>%
-   #   summarise(count(n = n()))))
-#  oneDaySample %>% 
- # select(Resolved) %>%
-  #filter(Resolved == "Yes") %>%
-  #summarise(count = n()), 55))
-
-#oneDaySampleCnt <- oneDaySample %>%
- # slice(1) %>%
-  #select(count)
-
-#probabilityResolved = round(resolvedOneDaySample$count / oneDaySampleCnt, 3)
-
-#sprintf("Probability that at least 70 percent of queries on the new site will be resolved in a day = %s / %s = %s", resolvedOneDaySample$count, oneDaySampleCnt, probabilityResolved)
+sprintf("probability that at least 70 percent of queries on the new site will be resolved in a day where it is assumed that 55 customers visit the site = %s", probabilityResolvedAboveThresholdVarB)
 ```
+
+
+> Our probability that at least 70% of queries on the new site will be resolved in a day where it is assumed that 55 customers visit the site was a score of: **0.121**
+
+---
+
+## Comparrison of new vs old site
+
+We have gathered some data on the new site now lets compare these insights against the old site. First lets visualise the proportion of resolved to unresolved queries the difference of resolved queries between variants
+
+```{r}
+population = count(data)$n
+
+ggplot(data, aes(fill=Resolved, y=population, x=Variant)) +
+  geom_bar(position = "fill", stat = "identity") +
+  ggtitle("Proportion resolved per variant")
+ggplot(data, aes(fill=Time<180, y=population, x=Variant)) +
+  geom_bar(position = "fill", stat = "identity") +
+  ggtitle("Proportion of time below 180 seconds (3 minutes) per variant")
+```
+
+As we can see from stacked bar chart there is a higher proportion of resolved queries on the new variant over the old.
+
+Lets compare Variant A on the same probabilities we gathered for Variant B
+```{r}
+variantA <- data %>%
+  select(Variant, Time, Resolved) %>%
+  filter(Variant == 'A')
+
+visitsBelow3minVarA <- variantA %>%
+  select(Time) %>%
+  filter(Time < 180)
+
+variantACnt <- count(variantA)$n
+visitsBelow3minVarACnt <- count(visitsBelow3minVarA)$n
+
+varAProbabilityVisitBelow3min <- calculateProbability(visitsBelow3minVarACnt, variantACnt)
+
+sprintf("Probability of a visit time below 3 minutes on the old variant (Variant A) = %s / %s = %s", visitsBelow3minVarACnt, variantACnt, varAProbabilityVisitBelow3min)
+
+eventsAboveThresholdVarA <- eventsAboveThresholdExperiment(variantA, noOfDays)
+
+probabilityResolvedAboveThresholdVarA <- calculateProbability(eventsAboveThresholdVarA, noOfDays)
+
+sprintf("probability that at least 70 percent of queries on the old site will be resolved in a day where it is assumed that 55 customers visit the site = %s", probabilityResolvedAboveThresholdVarA)
+```
+
+
+Now that we have recorded the same probabilities on both variants we can compare the 2 against eachother:
+
+```{r}
+variants <- unique(sort(data$Variant))
+probabilityvisitDurationLessThan3Minutes <- c(varAProbabilityVisitBelow3min, varBProbabilityVisitBelow3min)
+probabilityResolvedAbove70percent <- c(probabilityResolvedAboveThresholdVarA, probabilityResolvedAboveThresholdVarB)
+
+comparedProbabilities <- data.frame(variants, probabilityvisitDurationLessThan3Minutes, probabilityResolvedAbove70percent)
+
+comparedProbabilities
+```
+
+### The design used
+
+> To gather the probability for both of our experiments the following equation is used:
+>
+> ***P = # of events which meet our condition / total # of outcomes in our sample*** 
+
+To gather the probability in our experiment: *a visit will be below 3 minutes on the new site* we use a simple enough calculation:
+
+1- We count the number of events which meet our condition: The *Time* value is less than (<) 180 seconds.
+2- We count the total number of outcomes: Count all *Time* values found in our sample.
+3- We calculate probability by using these like so: P = _visitsBelow180Sec / allVisits_
+
+The same mechanism was used to gather the probability of a visit through time below 3 minutes on the old site - "Variant A".
+
+To gather the probability that *70 percent of queries will be resolved on a day where 55 customers visit the site* we use random sampling of rows for the given variant. 
+
+1- Take 55 randomly selected rows of the variant sample.
+2- Count the number of rows where the *Resolved* value was equal to ***"Yes"*** as _positiveResolutionCnt_.
+3- Add this count _positiveResolutionCnt_ to a list _positiveResolutionList_.
+3- Repeat steps 1, 2, and 3, 50 times.
+4- Count the number of events _daysWithResolutionAbove70Percent_ in _positiveResolutionList_ where the list item _i_ was greater than or equal to our threshold (70% of 55 = 38.5 = round down to 38).
+5- Calculate the probability by using the following: P = _daysWithResolutionAbove70Percent / totalNumberOfDays_
+
+---
+
+### Concerns with the design used.
+
+- Does not tell the whole story?
+- Very minimal data points gathered 
+
+### Numerical and graphical summaries
+
+```{r}
+comparedProbabilities
+```
+
+Histogram of Time on VariantA
+```{r}
+qplot(variantA$Time, geom="histogram")
+```
+Histogram of Time on VariantB
+```{r}
+qplot(variantB$Time, geom="histogram")
+```
+
+
+### Analysis for response variables (hypothesis test and interval estimate).
+```{r}
+t.test(variantA$Time, mu = 180)
+t.test(variantB$Time, mu = 180)
+```
+
+###  Calculate and interpret a 95%/95% Tolerance Interval for the visit through time variable.
+
+
+### Make a conclusion as to whether the change should be made to the current website.
+
+We see that from the 2 probabilities we have calculated the new site has a higher probability that a visit through time will be less than 3 minutes. Additionally, we see that the probability that 70% of queries on the site will be resolved in a day where we assume 55 customers visit the site is higher on the new site. From these 2 data points we could say that new site (Variant B) shows an improvement over the previous variant.
