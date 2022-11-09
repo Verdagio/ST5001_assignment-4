@@ -6,18 +6,11 @@ output: html_document
 ---
 
 A company is interested in investigating whether adding a new variant to a particular website will improve i) the visit through time and ii) the proportion of query items resolved compared to that observed in the current website. A sample of 300 customers were directed to either the current or new variant of the website and their visit through time whether or not their query was resolved was recorded.
-
-Variables of Interest:  Visit Through Time: Time (secs)
-                        Resolved: Resolved (Yes / No)
-Between Subject Factor: Variant: Variant (A/B)
-                        where 'A' represents the current website and 'B' represents the website with new variant.
                         
 ```{r}
 library("tidyverse")
 ```
 
-
-Read the data-set into a data-frame and define some functions which we will use in our experiments
 ```{r}
 data <- data.frame(read.csv("./ab_test.csv", header = TRUE, sep = ","))
 
@@ -43,6 +36,18 @@ eventsAboveThresholdExperiment <- function(sample, noOfDays) {
   daysMetCondition <- which(days >= threshold)
   noOfEvents <- length(daysMetCondition)
   return (noOfEvents)
+}
+
+calcIntervalEstimate <- function(variant, variantCnt) {
+  sigma <- sqrt(sum((variant$Time - 180)**2) / variantCnt)
+  
+  stdErrMean <- sigma / (sqrt(variantCnt))
+  
+  marginOfErr <- qnorm(.95) * stdErrMean
+  
+  intervalEst <- mean(variant$Time)
+  intervalEst <- intervalEst + c(-marginOfErr, marginOfErr)
+  return (intervalEst)
 }
 ```
 
@@ -103,23 +108,6 @@ sprintf("probability that at least 70 percent of queries on the new site will be
 
 ---
 
-## Comparrison of new vs old site
-
-We have gathered some data on the new site now lets compare these insights against the old site. First lets visualise the proportion of resolved to unresolved queries the difference of resolved queries between variants
-
-```{r}
-population = count(data)$n
-
-ggplot(data, aes(fill=Resolved, y=population, x=Variant)) +
-  geom_bar(position = "fill", stat = "identity") +
-  ggtitle("Proportion resolved per variant")
-ggplot(data, aes(fill=Time<180, y=population, x=Variant)) +
-  geom_bar(position = "fill", stat = "identity") +
-  ggtitle("Proportion of time below 180 seconds (3 minutes) per variant")
-```
-
-As we can see from stacked bar chart there is a higher proportion of resolved queries on the new variant over the old.
-
 Lets compare Variant A on the same probabilities we gathered for Variant B
 ```{r}
 variantA <- data %>%
@@ -144,19 +132,6 @@ probabilityResolvedAboveThresholdVarA <- calculateProbability(eventsAboveThresho
 sprintf("probability that at least 70 percent of queries on the old site will be resolved in a day where it is assumed that 55 customers visit the site = %s", probabilityResolvedAboveThresholdVarA)
 ```
 
-
-Now that we have recorded the same probabilities on both variants we can compare the 2 against eachother:
-
-```{r}
-variants <- unique(sort(data$Variant))
-probabilityvisitDurationLessThan3Minutes <- c(varAProbabilityVisitBelow3min, varBProbabilityVisitBelow3min)
-probabilityResolvedAbove70percent <- c(probabilityResolvedAboveThresholdVarA, probabilityResolvedAboveThresholdVarB)
-
-comparedProbabilities <- data.frame(variants, probabilityvisitDurationLessThan3Minutes, probabilityResolvedAbove70percent)
-
-comparedProbabilities
-```
-
 ### The design used
 
 > To gather the probability for both of our experiments the following equation is used:
@@ -165,53 +140,127 @@ comparedProbabilities
 
 To gather the probability in our experiment: *a visit will be below 3 minutes on the new site* we use a simple enough calculation:
 
-1- We count the number of events which meet our condition: The *Time* value is less than (<) 180 seconds.
-2- We count the total number of outcomes: Count all *Time* values found in our sample.
-3- We calculate probability by using these like so: P = _visitsBelow180Sec / allVisits_
+1. We count the number of events which meet our condition: The *Time* value is less than (<) 180 seconds.
+2. We count the total number of outcomes: Count all *Time* values found in our sample.
+3. We calculate probability by using these like so: P = _visitsBelow180Sec / allVisits_
 
 The same mechanism was used to gather the probability of a visit through time below 3 minutes on the old site - "Variant A".
 
 To gather the probability that *70 percent of queries will be resolved on a day where 55 customers visit the site* we use random sampling of rows for the given variant. 
 
-1- Take 55 randomly selected rows of the variant sample.
-2- Count the number of rows where the *Resolved* value was equal to ***"Yes"*** as _positiveResolutionCnt_.
-3- Add this count _positiveResolutionCnt_ to a list _positiveResolutionList_.
-3- Repeat steps 1, 2, and 3, 50 times.
-4- Count the number of events _daysWithResolutionAbove70Percent_ in _positiveResolutionList_ where the list item _i_ was greater than or equal to our threshold (70% of 55 = 38.5 = round down to 38).
-5- Calculate the probability by using the following: P = _daysWithResolutionAbove70Percent / totalNumberOfDays_
+1. Take 55 randomly selected rows of the variant sample.
+2. Count the number of rows where the *Resolved* value was equal to ***"Yes"*** as _positiveResolutionCnt_.
+3. Add this count _positiveResolutionCnt_ to a list _positiveResolutionList_.
+3. Repeat steps 1, 2, and 3, 50 times.
+4. Count the number of events _daysWithResolutionAbove70Percent_ in _positiveResolutionList_ where the list item _i_ was greater than or equal to our threshold (70% of 55 = 38.5 = round down to 38).
+5. Calculate the probability by using the following: P = _daysWithResolutionAbove70Percent / totalNumberOfDays_
 
 ---
 
 ### Concerns with the design used.
 
-- Does not tell the whole story?
-- Very minimal data points gathered 
+The experiment used to gather the probability for the 2nd experiment **70 percent of queries will be resolved on a day where 55 customers visit the site** is not likely to be a true representation of what an average quarter of a year would actually look like in terms of visits per day. It is very likely to have more or less than 55 visits per day but does give a somewhat faithful representation of the probability if you had an average of 55 visits per day. Also the threshold of 70% of 55 worked out to be 38.5 which was rounded down to 38, the data would have differed had we rounded up to 39 (less days would have met the criteria). 
 
 ### Numerical and graphical summaries
 
+Now that we have recorded the same probabilities on both variants we can compare the 2 against each other:
+
 ```{r}
-comparedProbabilities
+variants <- unique(sort(data$Variant))
+probabilityvisitDurationLessThan3Minutes <- c(varAProbabilityVisitBelow3min, varBProbabilityVisitBelow3min)
+probabilityResolvedAbove70percent <- c(probabilityResolvedAboveThresholdVarA, probabilityResolvedAboveThresholdVarB)
+
+comparedProbabilities <- data.frame(variants, probabilityvisitDurationLessThan3Minutes, probabilityResolvedAbove70percent)
+comparedProbabilities %>%
+  select(variants, probabilityvisitDurationLessThan3Minutes, probabilityResolvedAbove70percent) %>%
+  summarise(Variant = variants,
+            "Probability of visit less than 3 minutes" = probabilityvisitDurationLessThan3Minutes,
+            "Probability of resolved queries above 70% on a random day with 55 visits" = probabilityResolvedAbove70percent)
 ```
 
+We have gathered some data on both variants now lets compare these insights. First lets visualise the proportion of resolved to unresolved queries the difference of resolved queries between variants
+
+```{r}
+population = count(data)$n
+
+ggplot(data, aes(fill=Resolved, y=population, x=Variant)) +
+  geom_bar(position = "fill", stat = "identity") +
+  ggtitle("Proportion resolved per variant")
+ggplot(data, aes(fill=Time<180, y=population, x=Variant)) +
+  geom_bar(position = "fill", stat = "identity") +
+  ggtitle("Proportion of time below 180 seconds (3 minutes) per variant")
+```
+As we can see from stacked bar chart there is a higher proportion of resolved queries on the new variant over the old. Additionally there is a higher proportion of visits below 180 seconds on the new site.
+
+
 Histogram of Time on VariantA
+
+As we can see from the distribution of times across the histogram below our times for each visit fall between ~200 and ~400. This confirms our finding that the probability of a visit being below 180 seconds (3 minutes) is 0.0. We can further confirm this by looking at our minimum time found in the variant a sample.
+
+```{r}
+sprintf("Variant A minimum time: %s, average time: %s, maximum time: %s", min(variantA$Time),  mean(variantA$Time),max(variantA$Time))
+```
+
 ```{r}
 qplot(variantA$Time, geom="histogram")
 ```
+
 Histogram of Time on VariantB
+
+As we can see the distribution of times differs for variant B across the histogram. Our time distribution range is significantly lower on the min and max. Additionally we see that there is indeed records below the 180 second thus confirming our finding that the probability of a visit being below 180 seconds (3 minutes) is 0.327. We can further confirm this by looking at our minimum, average and maximum times found in the variant a sample.
+
+```{r}
+sprintf("Variant B minimum time: %s, average time: %s, maximum time: %s", min(variantB$Time),  mean(variantB$Time),max(variantB$Time))
+```
+As we can see the minimum is as low as ~93 seconds, over 100 seconds faster than our previous minimum and our max time is 10% higher than our previous average at ~319 seconds but ~80 seconds lower than our previous max. The average time on the new variant is quite close to our 180 second target at 207 seconds further reinforcing the probability found for this metric.
+
 ```{r}
 qplot(variantB$Time, geom="histogram")
 ```
 
+### Hypothesis test
 
-### Analysis for response variables (hypothesis test and interval estimate).
+Lets test a sample from variant B and gather our confidence interval, sample mean, degrees of freedom and alternative hypothesis
+
 ```{r}
-t.test(variantA$Time, mu = 180)
 t.test(variantB$Time, mu = 180)
 ```
+As we can see from our result the sample mean is higher at 207.161 than the null hypothesis value of 180.
 
-###  Calculate and interpret a 95%/95% Tolerance Interval for the visit through time variable.
+There is convincing evidence as the p-value is very small that the mean is not consistent with the null hypothesis value thus we can reject the null hypothesis.
+
+Lets repeat for Variant A
+
+```{r}
+t.test(variantA$Time, mu= 180)
+```
+We see here our mean is much further away from our target of 180 seconds, we can reject the null hypothesis given our p-value is even smaller than the previous test.
 
 
-### Make a conclusion as to whether the change should be made to the current website.
+### Interval estimation
 
-We see that from the 2 probabilities we have calculated the new site has a higher probability that a visit through time will be less than 3 minutes. Additionally, we see that the probability that 70% of queries on the site will be resolved in a day where we assume 55 customers visit the site is higher on the new site. From these 2 data points we could say that new site (Variant B) shows an improvement over the previous variant.
+Below we calculate the interval estimates manually it yields similar results to the tests carried out above for each variant
+
+Variant B
+```{r}
+calcIntervalEstimate(variantB, variantBCnt)
+
+```
+Variant A
+```{r}
+calcIntervalEstimate(variantA, variantACnt)
+```
+### Conclusion
+
+
+We see that from the data gathered and the 2 probabilities we have calculated the new site has:
+
+1. A higher probability that a visit through time will be less than 3 minutes.
+2. A higher probability that 70% of queries on the site will be resolved in a day where we assume 55 customers visit the site. 
+
+From these 2 data points alone we could say that new site (Variant B) shows an improvement over the previous variant, but we also found other benefits to the new site including:
+
+1. Lower minimum, average, and maximum visit times
+2. A higher resolved queries proportion.
+
+In conclusion given that we see improvements across multiple data points I would feel confident in recommending changing to Variant B.
