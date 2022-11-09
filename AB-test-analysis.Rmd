@@ -178,7 +178,7 @@ comparedProbabilities %>%
             "Probability of resolved queries above 70% on a random day with 55 visits" = probabilityResolvedAbove70percent)
 ```
 
-We have gathered some data on both variants now lets compare these insights. First lets visualise the proportion of resolved to unresolved queries the difference of resolved queries between variants
+Lets visualise the proportion of resolved to unresolved queries the difference of resolved queries between variants
 
 ```{r}
 population = count(data)$n
@@ -190,31 +190,25 @@ ggplot(data, aes(fill=Time<180, y=population, x=Variant)) +
   geom_bar(position = "fill", stat = "identity") +
   ggtitle("Proportion of time below 180 seconds (3 minutes) per variant")
 ```
-As we can see from stacked bar chart there is a higher proportion of resolved queries on the new variant over the old. Additionally there is a higher proportion of visits below 180 seconds on the new site.
+As we can see from stacked bar chart there is a higher proportion of resolved queries on variant B vs variant A. Additionally there is a higher proportion of visits below 180 seconds on variant B vs variant A.
 
+**Comparrison of Time on both variants**
 
-Histogram of Time on VariantA
+Below we can see from the distribution of times for variant A across the histogram. Our times for each visit fall between ~200 and ~400. This confirms our finding that the probability of a visit being below 180 seconds (3 minutes) is 0.0. We can further confirm this by looking at our minimum, mean and maximum time found in the variant a sample.
 
-As we can see from the distribution of times across the histogram below our times for each visit fall between ~200 and ~400. This confirms our finding that the probability of a visit being below 180 seconds (3 minutes) is 0.0. We can further confirm this by looking at our minimum time found in the variant a sample.
+The distribution of times differs for variant B. Our time distribution range is significantly lower on the min and max. Additionally we see that there is indeed records below the 180 second thus confirming our finding that the probability of a visit being below 180 seconds (3 minutes) is 0.327. We can further confirm this by looking at our minimum, average and maximum times and comparing them with the same found in the variant A sample.
 
 ```{r}
 sprintf("Variant A minimum time: %s, average time: %s, maximum time: %s", min(variantA$Time),  mean(variantA$Time),max(variantA$Time))
 ```
-
-```{r}
-qplot(variantA$Time, geom="histogram")
-```
-
-Histogram of Time on VariantB
-
-As we can see the distribution of times differs for variant B across the histogram. Our time distribution range is significantly lower on the min and max. Additionally we see that there is indeed records below the 180 second thus confirming our finding that the probability of a visit being below 180 seconds (3 minutes) is 0.327. We can further confirm this by looking at our minimum, average and maximum times found in the variant a sample.
-
 ```{r}
 sprintf("Variant B minimum time: %s, average time: %s, maximum time: %s", min(variantB$Time),  mean(variantB$Time),max(variantB$Time))
 ```
-As we can see the minimum is as low as ~93 seconds, over 100 seconds faster than our previous minimum and our max time is 10% higher than our previous average at ~319 seconds but ~80 seconds lower than our previous max. The average time on the new variant is quite close to our 180 second target at 207 seconds further reinforcing the probability found for this metric.
+As we can see the minimum is as low as ~93 seconds, over 100 seconds faster than our previous minimum and our max time is closer to our previous mean at ~319 seconds (+10%) but ~80 seconds lower than our previous max. The mean time on the new variant is quite close to our 180 second target at 207 seconds further reinforcing the probability found for this metric.
+
 
 ```{r}
+qplot(variantA$Time, geom="histogram")
 qplot(variantB$Time, geom="histogram")
 ```
 
@@ -261,6 +255,6 @@ We see that from the data gathered and the 2 probabilities we have calculated th
 From these 2 data points alone we could say that new site (Variant B) shows an improvement over the previous variant, but we also found other benefits to the new site including:
 
 1. Lower minimum, average, and maximum visit times
-2. A higher resolved queries proportion.
+2. A higher proportion of resolved queries ("Yes" responses)
 
 In conclusion given that we see improvements across multiple data points I would feel confident in recommending changing to Variant B.
