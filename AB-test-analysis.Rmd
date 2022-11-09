@@ -9,6 +9,7 @@ A company is interested in investigating whether adding a new variant to a parti
                         
 ```{r}
 library("tidyverse")
+library("tolerance")
 ```
 
 ```{r}
@@ -38,7 +39,7 @@ eventsAboveThresholdExperiment <- function(sample, noOfDays) {
   return (noOfEvents)
 }
 
-calcIntervalEstimate <- function(variant, variantCnt) {
+calcIntervalEstimateTime <- function(variant, variantCnt) {
   sigma <- sqrt(sum((variant$Time - 180)**2) / variantCnt)
   
   stdErrMean <- sigma / (sqrt(variantCnt))
@@ -46,6 +47,18 @@ calcIntervalEstimate <- function(variant, variantCnt) {
   marginOfErr <- qnorm(.95) * stdErrMean
   
   intervalEst <- mean(variant$Time)
+  intervalEst <- intervalEst + c(-marginOfErr, marginOfErr)
+  return (intervalEst)
+}
+
+calcIntervalEstimateResolution <- function(variant, variantCnt) {
+  sigma <- (sqrt(sum(variant$ResolvedNumeric)**2) / variantCnt)
+  
+  stdErrMean <- sigma / (sqrt(variantCnt))
+  
+  marginOfErr <- qnorm(.95) * stdErrMean
+  
+  intervalEst <- mean(variantCnt)
   intervalEst <- intervalEst + c(-marginOfErr, marginOfErr)
   return (intervalEst)
 }
@@ -208,8 +221,12 @@ As we can see the minimum is as low as ~93 seconds, over 100 seconds faster than
 
 
 ```{r}
-qplot(variantA$Time, geom="histogram")
-qplot(variantB$Time, geom="histogram")
+hist(variantB$Time, main = "Time distribution", xlab = "duration", prob = TRUE, col = "azure")
+
+lines(density(variantB$Time))
+hist(variantA$Time, main = "Time distribution", xlab = "duration", prob = TRUE, col="pink")
+
+lines(density(variantA$Time))
 ```
 
 ### Hypothesis test
@@ -218,32 +235,58 @@ Lets test a sample from variant B and gather our confidence interval, sample mea
 
 ```{r}
 t.test(variantB$Time, mu = 180)
+variantB <- variantB %>%
+  mutate(ResolvedNumeric = ifelse(Resolved == "Yes", 1, 0))
+t.test(variantB$ResolvedNumeric, mu = .7)
 ```
-As we can see from our result the sample mean is higher at 207.161 than the null hypothesis value of 180.
+As we can see from our result for **Time** the sample mean is higher at 207.161 than the null hypothesis value of 180. There is convincing evidence as the p-value is very small that the mean is not consistent with the null hypothesis value thus we can reject the null hypothesis.
 
-There is convincing evidence as the p-value is very small that the mean is not consistent with the null hypothesis value thus we can reject the null hypothesis.
+Likewise for our result for **Resolved** the sample mean is lower than our target of .7. our p-value is also quite small, therefore we can reject the null hypothesis value.
 
 Lets repeat for Variant A
 
 ```{r}
 t.test(variantA$Time, mu= 180)
+variantA <- variantA %>%
+  mutate(ResolvedNumeric = ifelse(Resolved == "Yes", 1, 0))
+t.test(variantA$ResolvedNumeric, mu = .7)
 ```
-We see here our mean is much further away from our target of 180 seconds, we can reject the null hypothesis given our p-value is even smaller than the previous test.
+**Time** - We see here our mean is much further away from our target of 180 seconds, we can reject the null hypothesis given our p-value is even smaller than the previous test.
 
+
+**Resolved** - Again our mean of x is lower than the hypothesis value of .7 and our p-value is minute therefore we can safely reject the null hypthesis value.
 
 ### Interval estimation
 
 Below we calculate the interval estimates manually it yields similar results to the tests carried out above for each variant
 
-Variant B
+Variant B Time & Resolution interval estimate
 ```{r}
-calcIntervalEstimate(variantB, variantBCnt)
+calcIntervalEstimateTime(variantB, variantBCnt)
+calcIntervalEstimateResolution(variantB, variantBCnt)
+```
+Variant A Time & Resolution interval estimate
+```{r}
+calcIntervalEstimateTime(variantA, variantACnt)
+calcIntervalEstimateResolution(variantA, variantACnt)
 
 ```
-Variant A
+
+### 95/95 Tolerance interval
+
 ```{r}
-calcIntervalEstimate(variantA, variantACnt)
+out <- normtol.int(variantB$Time, alpha = 0.05, P = 0.95, side = 1, method = "EXACT")
+out
 ```
+Here we see the distribution of our Times for Variant B based on a 2 sided tolerance interval. This describes where 95% of our data lies with 95% confidence.
+
+```{r}
+out <- normtol.int(variantA$Time, alpha = 0.05, P = 0.95, side = 1, method = "EXACT")
+out
+```
+Here we see the distribution of our Times for Variant A based on a 2 sided tolerance interval. This describes where 95% of our data lies with 95% confidence.
+
+
 ### Conclusion
 
 
